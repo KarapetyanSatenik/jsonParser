@@ -41,7 +41,6 @@ const jsonSearchByTitle = (json, titleValue) => {
 
   traverse(json);
 
-  // Read it in the morning.
   const phrases = result
     .map((i) => i.components.map((i) => i.html))
     .flat()[0]
@@ -58,7 +57,7 @@ const convertToHierarchy = (
   imageGenerator
 ) => {
   const messageComponent = (text) => ({ type: "message", text: text });
-  const linkComponent = (text) => ({ type: "link", text: text });
+  const linkComponent = (text, link) => ({ type: "link", text: text, link: link });
   const conditionComponent = (subsection) => ({
     type: "condition",
     text: subsection.title,
@@ -77,21 +76,41 @@ const convertToHierarchy = (
   const isTopicCall = (str) =>
     /[\w-]*_[\w-]*/.test(str?.replace(/<[^>]+>/g, ""));
 
+  const mdLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/;
+
   const generateComponents = (components) => {
     return components
       .reduce((acc, item) => {
         if (!item) return acc; // Skip if the item is null
         const { componentType, html, figureCaption, fileId } = item;
-        acc = [
-          ...acc,
-          subsectionsTitles.includes(html)
-            ? linkComponent(html)
-            : isTopicCall(html)
-            ? topicCallComponent(html)
-            : componentType === "Image"
-            ? imageComponent(figureCaption, fileId)
-            : messageComponent(html),
-        ];
+
+        const mdLinkMatch = html.match(mdLinkPattern);
+        if (mdLinkMatch) {
+          const text = mdLinkMatch[1];
+          const link = mdLinkMatch[2];
+          acc = [
+            ...acc,
+            subsectionsTitles.includes(link)
+              ? linkComponent(text, link)
+              : isTopicCall(link)
+              ? topicCallComponent(text, link)
+              : componentType === "Image"
+              ? imageComponent(figureCaption, fileId)
+              : messageComponent(text, link),
+          ];
+        } else {
+          acc = [
+            ...acc,
+            subsectionsTitles.includes(html)
+              ? linkComponent(html, html)
+              : isTopicCall(html)
+              ? topicCallComponent(html, html)
+              : componentType === "Image"
+              ? imageComponent(figureCaption, fileId)
+              : messageComponent(html, html),
+          ];
+        }
+
         return acc;
       }, [])
       .filter((item) => !(item.type === "message" && !item.text)) // Skip if the item is a message without text
