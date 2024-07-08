@@ -2,6 +2,12 @@ const fs = require("fs");
 const he = require("he");
 const path = require("path");
 
+const crypto = require("crypto");
+
+const generateHash = (data) => {
+  return crypto.createHash("sha256").update(data).digest("hex");
+};
+
 const getRawStructure = (jsonData) => {
   const regex = /<div[^>]*>(.*?)<\/div>/gs;
 
@@ -40,15 +46,15 @@ const jsonSearchByTitle = (json, titleValue) => {
   }
 
   traverse(json);
-// throw an error
+  // throw an error
   // const phrases = result
   //   .map((i) => i.components.map((i) => i.html))
   //   .flat()[0]
   //   .split("\n")
   //   .map((i) => i.replace(/<\/?[^>]+(>|$)/g, ""))
   //   .filter((i) => !!i);
-    
-    const phrases = result
+
+  const phrases = result
     .map((i) => i.components.map((i) => i.html))
     .flat()[0]
     .split("\n")
@@ -64,10 +70,13 @@ const convertToHierarchy = (
 ) => {
   const messageComponent = (text) => ({ type: "message", text: text });
   const linkComponent = (text) => ({ type: "link", text: text });
-  const conditionComponent = (subsection) => ({
+  const conditionComponent = (subsection, components) => ({
     type: "condition",
     text: subsection.title,
-    components: generateComponents(subsection.components),
+    components:
+      components.length > 0
+        ? components
+        : generateComponents(subsection.components),
   });
   const topicCallComponent = (text) => ({ type: "call_topic", text: text });
 
@@ -159,9 +168,20 @@ const convertToHierarchy = (
       acc.push(item);
       for (const option of item.options) {
         const block = blocks.find((i) => i.title === option.text);
-        if (block) {
-          // Only push if the block is not null
-          acc.push(linkComponents(block, blocks, level + 1, maxLevel));
+        if (block && !block.added) {
+          block.added = true;
+          block.id = generateHash(block.title);
+          acc.push(linkComponents(block, blocks));
+        } else {
+          acc.push(
+            conditionComponent(block, [
+              {
+                type: "go_to",
+                text: block.title,
+                refferenceId: blocks.find((i) => i.title === block.title).id,
+              },
+            ])
+          );
         }
       }
       return acc;
@@ -177,7 +197,7 @@ const convertToHierarchy = (
 };
 
 const inDirectoryPath = path.join(__dirname, "json");
-const outDirectoryPath = path.join(__dirname, "output");
+const outDirectoryPath = path.join(__dirname, "outputv3");
 
 fs.readdir(inDirectoryPath, (err, files) => {
   if (err) {
