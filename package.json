@@ -4,12 +4,21 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "rm -rf ./output && mkdir ./output && node src/index.js preProcessing",
+    "linker": "rm -rf ./output && mkdir ./output && node src/index.js linker",
+    "ugen": "rm -rf ./output && mkdir ./output && node src/index.js utteranceExtractor",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "imports": {
+    "#modules/*": "./src/modules/*/*.module.js",
+    "#utils/*": "./src/utils/*.util.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "csv-writer": "^1.6.0",
     "he": "^1.2.0"
   }
 }

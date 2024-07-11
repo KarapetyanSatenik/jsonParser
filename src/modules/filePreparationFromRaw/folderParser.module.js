@@ -1,7 +1,7 @@
 const fs = require("fs");
 const he = require("he");
 const path = require("path");
-const azDirectoryPath = path.join(__dirname, "azfolders");
+const azDirectoryPath = path.join(__dirname, "data/input/azfolders");
 
 fs.readdir(azDirectoryPath, (err, folders) => {
   if (err) {
