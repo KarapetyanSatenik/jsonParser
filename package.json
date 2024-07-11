@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "rm -rf ./output && mkdir ./output && node src/index.js preProcessing",
+    "start": "rm -rf ./data/output/output && mkdir ./data/output/output && node src/index.js preProcessing",
     "linker": "rm -rf ./output && mkdir ./output && node src/index.js linker",
     "ugen": "rm -rf ./output && mkdir ./output && node src/index.js utteranceExtractor",
     "test": "echo \"Error: no test specified\" && exit 1"
