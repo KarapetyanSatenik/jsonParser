@@ -1,66 +1,37 @@
-const fs = require("fs");
-const he = require("he");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
+const he = require('he');
 
-const crypto = require("crypto");
-
-const generateHash = (data) => {
-  return crypto.createHash("sha256").update(data).digest("hex");
-};
+const { removeTags, parseList, escapeInnerQuotes } = require('../../utils/htmlFormatter.util.js');
+const { generateHash } = require('../../utils/hash.util.js');
 
 const getRawStructure = (jsonData) => {
-  const regex = /<div[^>]*>(.*?)<\/div>/gs;
-
-  const texts = [];
-  let match;
-  while (
-    (match = regex.exec(he.decode(jsonData.section[1].text.div))) !== null
-  ) {
-    texts.push(match[1]);
-  }
-
-  return JSON.parse(texts[0].replace(/\n/g, "\\n"));
+  const raw = he.decode(
+    removeTags(jsonData.section[1].text.div, ['div'])
+      .replace(/\n/g, ''))
+  return JSON.parse(raw);
 };
 
 const jsonSearchByTitle = (json, titleValue) => {
-  const result = [];
-
-  function traverse(node) {
-    if (node && typeof node === "object" && node.title === titleValue) {
-      result.push(node);
-    }
-
-    if (node && typeof node === "object" && node.hasOwnProperty("title")) {
-      for (const key in node) {
-        if (node.hasOwnProperty(key)) {
-          traverse(node[key]);
+  const traverse = (node) => {
+    if (Array.isArray(node)) {
+      return node.reduce((acc, current) => acc.concat(traverse(current)), []);
+    } else if (node && typeof node === "object") {
+      return Object.keys(node).reduce((acc, key) => {
+        if (key === "title" && node[key] === titleValue) {
+          acc.push(node.components);
         }
-      }
+        return acc.concat(traverse(node[key]));
+      }, []);
     }
+    return [];
+  };
 
-    if (node && Array.isArray(node)) {
-      node.forEach((element) => {
-        traverse(element);
-      });
-    }
-  }
+  return traverse(json).flat().reduce((res, item) => {
+    res.concat(parseList(item.html))
+    return res
+  }, [])
 
-  traverse(json);
-  // throw an error
-  // const phrases = result
-  //   .map((i) => i.components.map((i) => i.html))
-  //   .flat()[0]
-  //   .split("\n")
-  //   .map((i) => i.replace(/<\/?[^>]+(>|$)/g, ""))
-  //   .filter((i) => !!i);
-
-  const phrases = result
-    .map((i) => i.components.map((i) => i.html))
-    .flat()[0]
-    .split("\n")
-    .map((i) => i.replace(/<\/?[^>]+(>|$)/g, ""))
-    .filter((i) => !!i);
-  return phrases;
 };
 
 const convertToHierarchy = (
@@ -70,13 +41,13 @@ const convertToHierarchy = (
 ) => {
   const messageComponent = (text) => ({ type: "message", text: text });
   const linkComponent = (text) => ({ type: "link", text: text });
-  const conditionComponent = (subsection, components) => ({
+  const conditionComponent = (subsection, components, level) => ({
     type: "condition",
     text: subsection.title,
     components:
       components.length > 0
         ? components
-        : generateComponents(subsection.components),
+        : generateComponents(subsection.components, level+1),
   });
   const topicCallComponent = (text) => ({ type: "call_topic", text: text });
 
@@ -89,28 +60,30 @@ const convertToHierarchy = (
   const subsectionsTitles = subsections.map((item) => item.title);
 
   const isTopicCall = (str) =>
-    /[\w-]*_[\w-]*/.test(str?.replace(/<[^>]+>/g, ""));
+    /^(US - [A-Za-z]+ - )?[A-Z0-9]+_[A-Za-z]+(_[A-Za-z]+)*$/.test(removeTags(str, ['p', 'span']));
 
   const mdLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/;
 
-  const generateComponents = (components) => {
+  const generateComponents = (components, level) => {
     return components
       .reduce((acc, item) => {
         if (!item) return acc; // Skip if the item is null
         const { componentType, html, figureCaption, fileId } = item;
-        acc = [
-          ...acc,
+        const component = componentType === "Image" ?
+          imageComponent(figureCaption, fileId) :
           subsectionsTitles.includes(html)
             ? linkComponent(html)
             : isTopicCall(html)
-            ? topicCallComponent(html)
-            : componentType === "Image"
-            ? imageComponent(figureCaption, fileId)
-            : messageComponent(html),
+              ? topicCallComponent(removeTags(html, ['p', 'span']))
+              : messageComponent(html)
+        component.id = `${component.type}.${level}.${generateHash((component.title || component.text || component.display))}`
+        acc = [
+          ...acc,
+          component
         ];
         return acc;
       }, [])
-      .filter((item) => !(item.type === "message" && !item.text)) // Skip if the item is a message without text
+      //.filter((item) => !(item.type === "message" && !item.text)) // Skip if the item is a message without text
       .reduce((acc, current, index, array) => {
         const isStartOfQuestion =
           current.type === "message" &&
@@ -120,7 +93,7 @@ const convertToHierarchy = (
           current.type === "link" && acc[acc.length - 1].type === "question";
 
         if (isStartOfQuestion) {
-          acc.push({ type: "question", text: current.text, options: [] });
+          acc.push({ id: `${current.type}.${level}.${generateHash((current.title || current.text))}`, type: "question", text: current.text, options: [] });
           return acc;
         }
         if (isLinkOfQuestion) {
@@ -132,6 +105,7 @@ const convertToHierarchy = (
         return acc;
       }, []);
   };
+
   const flatJSON = [
     {
       type: "root",
@@ -146,41 +120,38 @@ const convertToHierarchy = (
   ].map((block) => {
     return {
       ...block,
-      components: generateComponents(block.components),
+      components: generateComponents(block.components, 0),
     };
   });
+
   const cleanedJSON = Array.from(
     new Map(flatJSON.map((item) => [item.title, item])).values()
   );
   const Root = cleanedJSON.shift();
 
-  const linkComponents = (component, blocks, level = 0, maxLevel = 3) => {
-    if (level > maxLevel || !component) {
-      // Skip if the component is null
-      return;
-    }
-
+  const linkComponents = (component, blocks, level=0) => {
     const linkedComponents = component.components.reduce((acc, item) => {
+      acc.push(item);
+
       if (item.type !== "question") {
-        acc.push(item);
         return acc;
       }
-      acc.push(item);
+
       for (const option of item.options) {
         const block = blocks.find((i) => i.title === option.text);
         if (block && !block.added) {
           block.added = true;
           block.id = generateHash(block.title);
-          acc.push(linkComponents(block, blocks));
+          acc.push(linkComponents(block, blocks, level+1));
         } else {
           acc.push(
             conditionComponent(block, [
               {
                 type: "go_to",
                 text: block.title,
-                refferenceId: blocks.find((i) => i.title === block.title).id,
-              },
-            ])
+                refferenceId: blocks.find((i) => i.title === block.title).components[0].id,
+              }, 
+            ], level+1)
           );
         }
       }
@@ -192,12 +163,11 @@ const convertToHierarchy = (
       components: linkedComponents,
     };
   };
-  console.log(linkComponents(Root, cleanedJSON), null, 2);
   return linkComponents(Root, cleanedJSON);
 };
 
-const inDirectoryPath = path.join(__dirname, "json");
-const outDirectoryPath = path.join(__dirname, "outputv3");
+const inDirectoryPath = path.join(__dirname, "../../../data/output/json");
+const outDirectoryPath = path.join(__dirname, "../../../data/output/output");
 
 fs.readdir(inDirectoryPath, (err, files) => {
   if (err) {
@@ -208,6 +178,7 @@ fs.readdir(inDirectoryPath, (err, files) => {
   const jsonFiles = files.filter((file) => path.extname(file) === ".json");
 
   jsonFiles.forEach((file) => {
+
     const filePath = path.join(inDirectoryPath, file);
     const outFilePath = path.join(outDirectoryPath, file);
 
@@ -216,13 +187,13 @@ fs.readdir(inDirectoryPath, (err, files) => {
       jsonData = JSON.parse(fs.readFileSync(filePath, "utf8"));
     } catch (err) {
       console.error(`Failed to read or parse file ${filePath}: ${err}`);
+      process.exit(1)
       return; // Skip this file and continue with the next one
     }
     let rawJSON;
     let imageGenerator;
     try {
       rawJSON = getRawStructure(jsonData);
-
       imageGenerator = imageGeneratorProducer(jsonData);
     } catch (err) {
       console.error(
@@ -238,7 +209,7 @@ fs.readdir(inDirectoryPath, (err, files) => {
         topic: convertToHierarchy(rawJSON, jsonData.title, imageGenerator),
       };
     } catch (err) {
-      console.error(`Failed to generate final JSON for ${filePath}: ${err}`);
+      console.error(`Failed to generate final JSON for ${filePath}: ${err.stack}`);
       return; // Skip this file and continue with the next one
     }
 
@@ -264,7 +235,7 @@ const imageGeneratorProducer = (source) => (id) => {
     const filename = img.targetReference.reference;
 
     // Define the path where the image will be saved
-    const imagePath = path.join(__dirname, "images", filename);
+    const imagePath = path.join(__dirname, "../../../data/output/static/images", filename);
 
     // Write the image data to a file
     fs.writeFile(imagePath, imageData, "base64", (err, data) => {
