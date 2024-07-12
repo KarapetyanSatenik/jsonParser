@@ -14,13 +14,12 @@ module.exports.removeTags = (html, tagsToRemove) => {
 };
 
 module.exports.escapeInnerQuotes = (str) => {
-    let $ = cheerio.load(str, null, false);
-  
-    $('p').each((index, element) => {
-      $(element).html($(element).html().replace(/"/g, '\\"'));
-    });
-    return $.html()
-  }
+    return str.replace(/'([^']*?)'/g, (match, p1) => `'${p1.replace(/"/g, '\\"')}'`);
+}
+
+module.exports.escapeInnerDoubleQuotes = (str) => {
+    return str.replace(/'([^"]*?)'/g, (match, p1) => `'${p1.replace(/"/g, '\\"')}'`);
+}
 
 module.exports.parseList = (html) => {
     const $ = cheerio.load(html, null, false);
@@ -29,6 +28,6 @@ module.exports.parseList = (html) => {
     $('ul li').each((index, element) => {
         listItems.push($(element).text());
     });
-    
+
     return listItems;
 };

@@ -2,13 +2,19 @@ const fs = require('fs');
 const path = require('path');
 const he = require('he');
 
-const { removeTags, parseList, escapeInnerQuotes } = require('../../utils/htmlFormatter.util.js');
+const { removeTags, parseList} = require('../../utils/htmlFormatter.util.js');
 const { generateHash } = require('../../utils/hash.util.js');
 
 const getRawStructure = (jsonData) => {
   const raw = he.decode(
     removeTags(jsonData.section[1].text.div, ['div'])
-      .replace(/\n/g, ''))
+    .replace(/\n/g, '')
+    .replace(/data-dv-ctxs-groups-[^'"]+?='[^']*'/g, '')
+    .replace(/,"annotations":\[[^\]]*\]/g, '')
+    .replace(/data-ccp-parastyle="Default"/g, 'data-ccp-parastyle=\'Default\'')
+    .replace(/contenteditable="true"/g, 'contenteditable=\'true\'')
+  )
+  //console.log(raw.slice(70000, 82000))
   return JSON.parse(raw);
 };
 
@@ -47,7 +53,7 @@ const convertToHierarchy = (
     components:
       components.length > 0
         ? components
-        : generateComponents(subsection.components, level+1),
+        : generateComponents(subsection.components, level + 1),
   });
   const topicCallComponent = (text) => ({ type: "call_topic", text: text });
 
@@ -90,7 +96,7 @@ const convertToHierarchy = (
           index < array.length - 1 &&
           array[index + 1].type === "link";
         const isLinkOfQuestion =
-          current.type === "link" && acc[acc.length - 1].type === "question";
+          current.type === "link" && acc.length && acc[acc.length - 1].type === "question";
 
         if (isStartOfQuestion) {
           acc.push({ id: `${current.type}.${level}.${generateHash((current.title || current.text))}`, type: "question", text: current.text, options: [] });
@@ -129,7 +135,7 @@ const convertToHierarchy = (
   );
   const Root = cleanedJSON.shift();
 
-  const linkComponents = (component, blocks, level=0) => {
+  const linkComponents = (component, blocks, level = 0) => {
     const linkedComponents = component.components.reduce((acc, item) => {
       acc.push(item);
 
@@ -142,7 +148,7 @@ const convertToHierarchy = (
         if (block && !block.added) {
           block.added = true;
           block.id = generateHash(block.title);
-          acc.push(linkComponents(block, blocks, level+1));
+          acc.push(linkComponents(block, blocks, level + 1));
         } else {
           acc.push(
             conditionComponent(block, [
@@ -150,8 +156,8 @@ const convertToHierarchy = (
                 type: "go_to",
                 text: block.title,
                 refferenceId: blocks.find((i) => i.title === block.title).components[0].id,
-              }, 
-            ], level+1)
+              },
+            ], level + 1)
           );
         }
       }
@@ -178,7 +184,8 @@ fs.readdir(inDirectoryPath, (err, files) => {
   const jsonFiles = files.filter((file) => path.extname(file) === ".json");
 
   jsonFiles.forEach((file) => {
-
+    // if (file !== 'FHIR-composition_fd763c39-5865-45dc-82b5-186dedf97057.json') 
+    //   return;
     const filePath = path.join(inDirectoryPath, file);
     const outFilePath = path.join(outDirectoryPath, file);
 
