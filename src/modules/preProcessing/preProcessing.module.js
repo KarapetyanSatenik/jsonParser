@@ -32,9 +32,9 @@ const jsonSearchByTitle = (json, titleValue) => {
     }
     return [];
   };
-
+  
   return traverse(json).flat().reduce((res, item) => {
-    res.concat(parseList(item.html))
+    res = res.concat(parseList(item.html))
     return res
   }, [])
 
@@ -63,10 +63,10 @@ const convertToHierarchy = (
     display: imageGenerator(fileId),
   });
 
-  const subsectionsTitles = subsections.map((item) => item.title);
+  const subsectionsTitles = subsections.map((item) => item.title.toLowerCase());
 
   const isTopicCall = (str) =>
-    /^(US - [A-Za-z]+ - )?[A-Z0-9]+_[A-Za-z]+(_[A-Za-z]+)*$/.test(removeTags(str, ['p', 'span']));
+    /^(US - [A-Za-z]+ - )?[A-Z0-9]+_[A-Za-z0-9]+(_[A-Za-z0-9]+)*$/.test(removeTags(str, ['p', 'span']));
 
   const mdLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/;
 
@@ -77,7 +77,7 @@ const convertToHierarchy = (
         const { componentType, html, figureCaption, fileId } = item;
         const component = componentType === "Image" ?
           imageComponent(figureCaption, fileId) :
-          subsectionsTitles.includes(html)
+          subsectionsTitles.includes(html.toLowerCase())
             ? linkComponent(html)
             : isTopicCall(html)
               ? topicCallComponent(removeTags(html, ['p', 'span']))
@@ -144,7 +144,7 @@ const convertToHierarchy = (
       }
 
       for (const option of item.options) {
-        const block = blocks.find((i) => i.title === option.text);
+        const block = blocks.find((i) => i.title.toLowerCase() === option.text.toLowerCase());
         if (block && !block.added) {
           block.added = true;
           block.id = generateHash(block.title);
