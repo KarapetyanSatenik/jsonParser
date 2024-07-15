@@ -8,8 +8,7 @@ async function writeArrayToCsv(dataArray, fileName) {
 
   const csvWriter = createCsvWriter({
     path: csvPath,
-    header: headers,
-    recordDelimiter: ','
+    header: headers
   });
 
   try {
@@ -20,8 +19,8 @@ async function writeArrayToCsv(dataArray, fileName) {
   }
 }
 
-const inDirectoryPath = path.join(__dirname, "outputv3");
-const outDirectoryPath = path.join(__dirname, "outputv3");
+const inDirectoryPath = path.join(__dirname, "../../../data/output/output");
+console.log(inDirectoryPath)
 
 let dicTop = []
 
@@ -35,11 +34,11 @@ fs.readdir(inDirectoryPath, (err, files) => {
 
   jsonFiles.forEach((file) => {
     const filePath = path.join(inDirectoryPath, file);
-    const outFilePath = path.join(outDirectoryPath, file);
 
     let jsonData;
     try {
       jsonData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      console.log(jsonData)
     } catch (err) {
       console.error(`Failed to read or parse file ${filePath}: ${err}`);
       return; // Skip this file and continue with the next one
@@ -53,5 +52,6 @@ fs.readdir(inDirectoryPath, (err, files) => {
     //   // No need to return here, as we're at the end of the loop anyway
     // }
   });
+  console.log(dicTop)
   writeArrayToCsv(dicTop, 'utterances.csv');
 });

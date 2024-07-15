@@ -32,9 +32,9 @@ const jsonSearchByTitle = (json, titleValue) => {
     }
     return [];
   };
-
+  
   return traverse(json).flat().reduce((res, item) => {
-    res.concat(parseList(item.html))
+    res = res.concat(parseList(item.html))
     return res
   }, [])
 
