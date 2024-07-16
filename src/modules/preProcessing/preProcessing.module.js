@@ -66,7 +66,7 @@ const convertToHierarchy = (
   const subsectionsTitles = subsections.map((item) => item.title.toLowerCase());
 
   const isTopicCall = (str) =>
-    /^(US - [A-Za-z]+ - )?[A-Z0-9]+_[A-Za-z0-9]+(_[A-Za-z0-9]+)*$/.test(removeTags(str, ['p', 'span']));
+    /^(US\s*-\s*[A-Za-z-]+\s*-\s*)?[A-Za-z0-9-]+(_[A-Za-z0-9-]+)*$/.test(removeTags(str, ['p', 'span']));
 
   const mdLinkPattern = /\[([^\]]+)\]\(([^)]+)\)/;
 
